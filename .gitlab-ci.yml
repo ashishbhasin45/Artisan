@@ -1,0 +1,42 @@
+stages:
+  - test
+  - quality
+  - deploy
+
+test:
+  stage: test
+  image: maven:latest
+  script:
+    - cd Backend
+    - mvn test
+  only:
+    - production
+
+quality:
+  stage: quality
+  image: openjdk:17-jdk-alpine
+  script: 
+    - echo "Extracting the smells..."
+    - mkdir smells
+    - ls
+    - pwd
+    - java -jar /builds/courses/2024-winter/csci5308/Group03/Backend/DesigniteJava.jar -i /builds/courses/2024-winter/csci5308/Group03/Backend -o /builds/courses/2024-winter/csci5308/smells/ 
+  only:
+    - production
+
+deploy:
+  stage: deploy
+  image: kroniak/ssh-client
+  script:
+    - chmod 400 "$SSH_PRIVATE_KEY"
+    - ssh -o StrictHostKeyChecking=no -i "${SSH_PRIVATE_KEY}" "${SSH_USER}@${SSH_HOST}" "rm -rf DEPLOYMENT"
+    - ssh -o StrictHostKeyChecking=no -i "${SSH_PRIVATE_KEY}" "${SSH_USER}@${SSH_HOST}" "mkdir -p DEPLOYMENT"
+    - scp -o StrictHostKeyChecking=no -i "${SSH_PRIVATE_KEY}" -r [!.]* "${SSH_USER}@${SSH_HOST}:DEPLOYMENT"
+    - scp -o StrictHostKeyChecking=no -i "${SSH_PRIVATE_KEY}" "${ENV}" "${SSH_USER}@${SSH_HOST}:DEPLOYMENT/.env"
+    - scp -o StrictHostKeyChecking=no -i "${SSH_PRIVATE_KEY}" "${FRONTEND_VARIABLE}" "${SSH_USER}@${SSH_HOST}:DEPLOYMENT/Frontend/.env"
+    - ssh -o StrictHostKeyChecking=no -i "${SSH_PRIVATE_KEY}" "${SSH_USER}@${SSH_HOST}" "sh /home/student/DEPLOYMENT/startup.sh"
+  only:
+    - production
+  dependencies:
+    - test
+    - quality
